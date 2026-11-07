@@ -45,6 +45,9 @@
   label.lbl{display:block;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:5px}
   select,input[type=text],input[type=number],textarea{width:100%;padding:10px 12px;font-size:16px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-family:inherit}
   textarea{resize:vertical}
+  /* Examples must never read as entered values. */
+  input::placeholder,textarea::placeholder{font-style:italic;color:#aab3c2;opacity:1}
+  input:-ms-input-placeholder,textarea:-ms-input-placeholder{font-style:italic;color:#aab3c2}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
   .span2{grid-column:1/-1}.row{display:flex;gap:6px}.hidden{display:none !important}
   .counts{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:18px}
@@ -104,11 +107,8 @@
     </div>
     <div class="card">
       <h2>Standing training <span>(optional)</span></h2>
-      <p style="font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 10px">If you do the same training on most shifts, name it here and the shift form gets a one-tap box to log it. Leave blank to hide that box.</p>
-      <div class="grid" style="margin-bottom:0">
-        <div class="field"><label class="lbl" for="suPerName">Training</label><input type="text" id="suPerName" placeholder="QAB Study"></div>
-        <div class="field"><label class="lbl" for="suPerHours">Hours</label><input type="number" id="suPerHours" step="0.5" min="0.5" max="24" placeholder="2"></div>
-      </div>
+      <p style="font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 10px">Training you log often. Each one you keep becomes a tick box on the shift form, so logging it takes one tap. Untick any you don't use, and edit the whole list later in Settings.</p>
+      <div id="suStanding"></div>
     </div>
     <div id="suErr" class="hidden warn"></div>
     <button class="btn btn-red" id="suGo" style="width:100%;padding:14px;font-size:16px">Start logging</button>
@@ -175,10 +175,10 @@
     <div class="counts" id="counts"></div>
     <label class="lbl" for="note">Shift note (optional)</label>
     <input type="text" id="note" placeholder="Appears in the memo's shift table" style="margin-bottom:12px">
-    <label id="alsoWrap" style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:18px;font-size:14px;cursor:pointer">
-      <input type="checkbox" id="alsoTrain" style="width:20px;height:20px;flex:0 0 auto;margin:0">
-      <span id="alsoLabel">Also log QAB Study (2 hr) on this date</span>
-    </label>
+    <div id="alsoWrap" style="margin-bottom:18px">
+      <label class="lbl">Also log on this date</label>
+      <div id="alsoList"></div>
+    </div>
   </div>
   <div class="card"><h2 id="recentTitle">Recent entries</h2><div id="recent"></div></div>
 </section>
@@ -197,6 +197,7 @@
   <div class="card"><h2>Shifts <span id="mShiftN"></span></h2><div id="mShifts"></div></div>
   <div class="card"><h2>Training <span id="mTrainN"></span></h2>
     <div id="bulkWrap" class="hidden" style="margin-bottom:10px">
+      <select id="bulkPick" style="margin-bottom:6px"></select>
       <button class="btn btn-outline" id="bulkTrain" style="width:100%;padding:9px 12px;font-size:13px"></button>
     </div>
     <div id="mTrain"></div></div>
@@ -252,11 +253,9 @@
     <div class="field"><label class="lbl" for="sTrain">Trainings</label><textarea id="sTrain" rows="4"></textarea></div>
   </div>
   <div class="card">
-    <h2>Per-shift training <span>(the one-tap option on the shift form)</span></h2>
-    <div class="grid" style="margin-bottom:0">
-      <div class="field"><label class="lbl" for="sPerName">Training</label><input type="text" id="sPerName" placeholder="QAB Study"></div>
-      <div class="field"><label class="lbl" for="sPerHours">Hours</label><input type="number" id="sPerHours" step="0.5" min="0.5" max="24"></div>
-    </div>
+    <h2>Standing training <span>(each becomes a tick box on the shift form)</span></h2>
+    <div id="stList"></div>
+    <button class="btn btn-outline" id="stAdd" style="width:100%;padding:9px 12px;font-size:13px;margin-top:8px">Add an option</button>
   </div>
   <div class="card">
     <h2>Backup</h2>
@@ -289,7 +288,7 @@
 <script src="memo.js"></script>
 <script>
 (function(){
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   const M = MemoLib, $ = id => document.getElementById(id), pad2 = n => String(n).padStart(2,'0');
   const DEFAULTS = {
     // Identity starts empty so a new install asks whose memo this is. The lists below are
@@ -298,14 +297,32 @@
       times:['0800-0800','0800-2000','2000-0800'], apparatus:['E2','E5','E6','E21','E26','E30','T2','T30'],
       bcs:['BC Allread','BC Diaz','BC Herrera','BC Lovens','BC Vega'],
       trainings:['QAB Study','Fire Suppression Techniques','Deep lot hose deployment','Change over and hose deployment','Ground ladders'],
-      perShiftTraining:'QAB Study', perShiftHours:2 },
+      // Training you log often. Each becomes a tick box on the shift form.
+      standingTrainings:[ {name:'QAB Study',hours:1}, {name:'QAB Study',hours:2},
+        {name:'Study Department Policy and Procedures',hours:1}, {name:'Completed City Online Training',hours:1} ] },
     shifts:[], trainings:[], events:[], months:{}
   };
   let store; try { store = JSON.parse(localStorage.getItem('sjfd-store')); } catch(e){}
   if (!store || !store.settings) store = JSON.parse(JSON.stringify(DEFAULTS));
   store.settings = Object.assign({}, DEFAULTS.settings, store.settings);
   ['shifts','trainings','events'].forEach(k => store[k] = store[k] || []); store.months = store.months || {};
+  // Upgrade from the single per-shift training of v1.2.0: keep what the user had set and add
+  // the standard options alongside it, rather than silently replacing their choice.
+  let migrated = false;
+  if (!Array.isArray(store.settings.standingTrainings)) { store.settings.standingTrainings = []; }
+  if (store.settings.perShiftTraining !== undefined) {
+    const had = String(store.settings.perShiftTraining||'').trim(), hrs = Number(store.settings.perShiftHours)||0;
+    const list = DEFAULTS.settings.standingTrainings.slice();
+    if (had && hrs > 0 && !list.some(o => o.name === had && o.hours === hrs)) list.unshift({name:had, hours:hrs});
+    store.settings.standingTrainings = list;
+    delete store.settings.perShiftTraining; delete store.settings.perShiftHours;
+    migrated = true;
+  }
+  const standing = () => (store.settings.standingTrainings||[]).filter(o => (o.name||'').trim() && Number(o.hours) > 0);
   const save = () => { try { localStorage.setItem('sjfd-store', JSON.stringify(store)); } catch(e){ toast('Could not save: storage full or blocked'); } };
+  // Persist the upgrade at once. Left unsaved it would re-run on every launch and bring back
+  // options the user had deliberately deleted.
+  if (migrated) save();
   const lhBytes = Uint8Array.from(atob(LETTERHEAD_B64), c => c.charCodeAt(0));
   const now = new Date(), thisYm = now.getFullYear() + '-' + pad2(now.getMonth()+1);
   let mode = 'shift', counts = {}, hours = 1, curMonth = thisYm, genMonth = thisYm;
@@ -335,6 +352,24 @@
   function bump(key,delta){ const v=Math.max(0,(counts[key]||0)+delta); if(v===0) delete counts[key]; else counts[key]=v;
     const el=cWrap.querySelector(`[data-key="${key}"]`); el.querySelector('.val').textContent=v; el.classList.toggle('on',v>0); renderLog(); }
   function resetCounts(){ counts={}; cWrap.querySelectorAll('.count').forEach(el=>{el.classList.remove('on');el.querySelector('.val').textContent='0';}); }
+  // One tick box per standing training option, rebuilt whenever the list changes.
+  function renderAlso(){
+    const list=standing(), wrap=$('alsoWrap'), box=$('alsoList');
+    wrap.classList.toggle('hidden', !list.length || !!editing);
+    const keep={}; box.querySelectorAll('input').forEach(i=>keep[i.dataset.k]=i.checked);
+    box.innerHTML='';
+    list.forEach((o,i)=>{
+      const k=o.name+'|'+o.hours;
+      const l=document.createElement('label');
+      l.style.cssText='display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:14px;cursor:pointer;margin-bottom:6px';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.dataset.k=k; cb.dataset.i=i;
+      cb.style.cssText='width:20px;height:20px;flex:0 0 auto;margin:0'; cb.checked=!!keep[k];
+      const sp=document.createElement('span'); sp.textContent=o.name+' ('+M.fmtHr(o.hours)+' hr)';
+      l.append(cb,sp); box.appendChild(l);
+    });
+  }
+  const checkedStanding=()=>[...$('alsoList').querySelectorAll('input:checked')].map(i=>standing()[+i.dataset.i]).filter(Boolean);
+  const clearStanding=()=>$('alsoList').querySelectorAll('input').forEach(i=>i.checked=false);
   function val(selId,customId){ const s=$(selId); return s.value==='custom'?$(customId).value.trim():s.value; }
   function entryDate(){ const m=+$('month').value; let y=now.getFullYear(); if(m>now.getMonth()+1 && m-(now.getMonth()+1)>6) y--; return y+'-'+pad2(m)+'-'+$('day').value; }
   function currentEntry(){ const date=entryDate();
@@ -343,9 +378,7 @@
     return {id:M.uid(),date,time:val('time','timeCustom'),apparatus:val('app','appCustom'),bc:val('bc','bcCustom'),counts:Object.assign({},counts),notes:$('note').value.trim()}; }
   function lineFor(e,kind){ if(kind==='training') return M.mmdd(e.date)+' | '+e.name+' | '+M.fmtHr(e.hours)+' hr'; if(kind==='event') return M.mmdd(e.date)+' | '+e.text; return M.shiftLine(e); }
   function renderLog(){ const e=currentEntry(); $('line').textContent=lineFor(e,mode);
-    const pn=(store.settings.perShiftTraining||'').trim(), ph=Number(store.settings.perShiftHours)||0;
-    $('alsoWrap').classList.toggle('hidden', !(pn&&ph>0) || !!editing);
-    $('alsoLabel').textContent='Also log '+pn+' ('+M.fmtHr(ph)+' hr) on this date';
+    renderAlso();
     $('cap').textContent=mode==='training'?'Training entry':mode==='event'?'Significant event':'Shift entry';
     const t=Object.values(counts).reduce((a,b)=>a+b,0); $('calls').textContent=`${t} call${t===1?'':'s'}`; $('calls').classList.toggle('hidden',mode!=='shift');
     document.querySelectorAll('[data-for]').forEach(el=>el.classList.toggle('hidden',el.dataset.for!==mode));
@@ -380,7 +413,7 @@
       counts=Object.assign({},e.counts||{});
       cWrap.querySelectorAll('.count').forEach(el=>{ const v=counts[el.dataset.key]||0;
         el.querySelector('.val').textContent=v; el.classList.toggle('on',v>0); });
-      $('note').value=e.notes||''; $('alsoTrain').checked=false;
+      $('note').value=e.notes||''; clearStanding();
     } else if(kind==='training'){ setSel('training','trainingCustom',e.name); hours=Number(e.hours)||1; $('hrVal').textContent=M.fmtHr(hours); }
     else { $('eventText').value=e.text||''; }
     $('editBar').classList.remove('hidden'); $('saveEntry').textContent='Save changes';
@@ -415,14 +448,15 @@
     arr.push(e);
     // Companion training entry, so the common "QAB study on every shift" case is one tap.
     let extra='';
-    if(mode==='shift' && $('alsoTrain').checked){
-      const n=(store.settings.perShiftTraining||'').trim(), h=Number(store.settings.perShiftHours)||0;
-      if(n && h>0){ store.trainings.push({id:M.uid(),date:e.date,name:n,hours:h}); extra=' + '+n; }
+    if(mode==='shift'){
+      const picked=checkedStanding();
+      picked.forEach(o=>store.trainings.push({id:M.uid(),date:e.date,name:o.name,hours:Number(o.hours)}));
+      if(picked.length) extra=' + '+(picked.length===1?picked[0].name:picked.length+' trainings');
     }
     // A new month starts from the previous month's standing fields instead of blank.
     const filled=M.inheritMeta(store,e.date.slice(0,7));
     save();
-    if(mode==='shift'){resetCounts();$('note').value='';} if(mode==='event') $('eventText').value='';
+    if(mode==='shift'){resetCounts();$('note').value='';clearStanding();} if(mode==='event') $('eventText').value='';
     renderAll();
     toast(filled.length ? 'Saved'+extra+'. Month details carried over' : 'Saved'+extra); };
 
@@ -443,13 +477,16 @@
     const shiftDates=[...new Set(of(store.shifts,curMonth).map(s=>s.date))];
     const trained=new Set(of(store.trainings,curMonth).map(t=>t.date));
     const missing=shiftDates.filter(d=>!trained.has(d));
-    const pn=(store.settings.perShiftTraining||'').trim(), ph=Number(store.settings.perShiftHours)||0;
-    const bw=$('bulkWrap');
-    if(missing.length && pn && ph>0){
+    const opts=standing(), bw=$('bulkWrap');
+    if(missing.length && opts.length){
       bw.classList.remove('hidden');
-      $('bulkTrain').textContent='Add '+pn+' ('+M.fmtHr(ph)+' hr) to '+missing.length+' shift'+(missing.length===1?'':'s')+' with no training';
-      $('bulkTrain').onclick=()=>{ if(!confirm('Add '+pn+' ('+M.fmtHr(ph)+' hr) on '+missing.length+' date'+(missing.length===1?'':'s')+'?')) return;
-        missing.forEach(d=>store.trainings.push({id:M.uid(),date:d,name:pn,hours:ph}));
+      const sel=$('bulkPick');
+      sel.innerHTML=''; opts.forEach((o,i)=>{ const e=document.createElement('option');
+        e.value=i; e.textContent=o.name+' ('+M.fmtHr(o.hours)+' hr)'; sel.appendChild(e); });
+      $('bulkTrain').textContent='Add to '+missing.length+' shift'+(missing.length===1?'':'s')+' with no training';
+      $('bulkTrain').onclick=()=>{ const o=opts[+sel.value]; if(!o) return;
+        if(!confirm('Add '+o.name+' ('+M.fmtHr(o.hours)+' hr) on '+missing.length+' date'+(missing.length===1?'':'s')+'?')) return;
+        missing.forEach(d=>store.trainings.push({id:M.uid(),date:d,name:o.name,hours:Number(o.hours)}));
         save(); renderAll(); toast('Added '+missing.length+' training entr'+(missing.length===1?'y':'ies')); };
     } else bw.classList.add('hidden');
     const sh=of(store.shifts,curMonth), tr=of(store.trainings,curMonth), ev=of(store.events,curMonth);
@@ -504,13 +541,34 @@
   $('backupLater').onclick=()=>$('backupNote').classList.add('hidden');
   $('backupNow').onclick=()=>{ $('backupNote').classList.add('hidden'); $('exportBtn').click(); };
 
-  const sMap={sRank:'rank',sName:'name',sBadge:'badge',sUnit:'unit',sTo:'to',sPerName:'perShiftTraining',sPerHours:'perShiftHours'}, lMap={sTimes:'times',sApps:'apparatus',sBcs:'bcs',sTrain:'trainings'};
+  const sMap={sRank:'rank',sName:'name',sBadge:'badge',sUnit:'unit',sTo:'to'}, lMap={sTimes:'times',sApps:'apparatus',sBcs:'bcs',sTrain:'trainings'};
+  // Editable rows for the standing training list.
+  function renderStanding(){
+    const box=$('stList'); box.innerHTML='';
+    const list=store.settings.standingTrainings||[];
+    if(!list.length) box.innerHTML='<div class="empty">No standing training. Add one and it appears on the shift form.</div>';
+    list.forEach((o,i)=>{
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';
+      const n=document.createElement('input'); n.type='text'; n.value=o.name||''; n.placeholder='QAB Study'; n.style.flex='1 1 auto';
+      const h=document.createElement('input'); h.type='number'; h.step='0.5'; h.min='0.5'; h.max='24';
+      h.value=o.hours||''; h.placeholder='1'; h.style.cssText='width:72px;flex:0 0 auto';
+      const x=document.createElement('button'); x.textContent='×'; x.setAttribute('aria-label','Remove option');
+      x.style.cssText='border:0;background:transparent;color:var(--muted-lt);cursor:pointer;font-size:19px;padding:0 4px;flex:0 0 auto';
+      n.onchange=()=>{ o.name=n.value.trim(); save(); renderAlso(); renderMonth(); };
+      h.onchange=()=>{ o.hours=parseFloat(h.value)||0; save(); renderAlso(); renderMonth(); };
+      x.onclick=()=>{ if(!confirm('Remove "'+(o.name||'this option')+'"?')) return;
+        list.splice(i,1); save(); renderStanding(); renderAlso(); renderMonth(); };
+      row.append(n,h,x); box.appendChild(row);
+    });
+  }
+  $('stAdd').onclick=()=>{ store.settings.standingTrainings=store.settings.standingTrainings||[];
+    store.settings.standingTrainings.push({name:'',hours:1}); save(); renderStanding(); renderAlso(); };
   function renderSettings(){ for(const id in sMap) $(id).value=store.settings[sMap[id]]||''; for(const id in lMap) $(id).value=(store.settings[lMap[id]]||[]).join('\n');
+    renderStanding();
     $('hdrWho').textContent=store.settings.rank+' '+store.settings.name+' · Badge '+store.settings.badge+' · '+store.settings.unit; $('version').textContent='Shift Log v'+APP_VERSION+' · data stays on this phone'; }
-  for(const id in sMap) $(id).oninput=()=>{ const v=$(id).value.trim();
-    store.settings[sMap[id]] = id==='sPerHours' ? (parseFloat(v)||0) : v;
-    save(); $('hdrWho').textContent=store.settings.rank+' '+store.settings.name+' · Badge '+store.settings.badge+' · '+store.settings.unit;
-    if(id==='sPerName'||id==='sPerHours') renderLog(); };
+  for(const id in sMap) $(id).oninput=()=>{ store.settings[sMap[id]]=$(id).value.trim();
+    save(); $('hdrWho').textContent=store.settings.rank+' '+store.settings.name+' · Badge '+store.settings.badge+' · '+store.settings.unit; };
   for(const id in lMap) $(id).onchange=()=>{ store.settings[lMap[id]]=$(id).value.split('\n').map(s=>s.trim()).filter(Boolean); save(); fillLists(); renderLog(); };
   $('exportBtn').onclick=async()=>{ const txt=M.exportText(store); const d=new Date(); await deliver(new Blob([txt],{type:'text/plain'}),'SJFD_Shift_Log_'+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+'.txt','text/plain'); };
   $('copyExport').onclick=e=>copy(M.exportText(store),e.target,'Copy log text');
@@ -536,8 +594,15 @@
     $('suRank').value=store.settings.rank||''; $('suName').value=store.settings.name||'';
     $('suBadge').value=store.settings.badge||''; $('suUnit').value=store.settings.unit||'';
     $('suTo').value=store.settings.to||'';
-    $('suPerName').value=store.settings.perShiftTraining||'';
-    $('suPerHours').value=store.settings.perShiftHours||'';
+    const box=$('suStanding'); box.innerHTML='';
+    (store.settings.standingTrainings||[]).forEach((o,i)=>{
+      const l=document.createElement('label');
+      l.style.cssText='display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:14px;cursor:pointer;margin-bottom:6px';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.i=i;
+      cb.style.cssText='width:20px;height:20px;flex:0 0 auto;margin:0';
+      const sp=document.createElement('span'); sp.textContent=o.name+' ('+M.fmtHr(o.hours)+' hr)';
+      l.append(cb,sp); box.appendChild(l);
+    });
     $('setup').classList.remove('hidden');
   }
   $('suGo').onclick=()=>{
@@ -548,10 +613,10 @@
     if(missing.length){ err.classList.remove('hidden');
       err.textContent='Still needed: '+missing.join(', ')+'.'; return; }
     err.classList.add('hidden');
-    const pn=v('suPerName');
+    const all=store.settings.standingTrainings||[];
+    const keep=[...$('suStanding').querySelectorAll('input:checked')].map(i=>all[+i.dataset.i]).filter(Boolean);
     Object.assign(store.settings,{ rank:v('suRank'), name:v('suName'), badge:v('suBadge'),
-      unit:v('suUnit'), to:v('suTo'), perShiftTraining:pn,
-      perShiftHours: pn ? (parseFloat(v('suPerHours'))||1) : 0 });
+      unit:v('suUnit'), to:v('suTo'), standingTrainings:keep });
     save(); $('setup').classList.add('hidden'); renderAll(); toast('Ready. Log your first shift');
   };
   if(needsSetup()) showSetup();
