@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file in this folder changes.
-const CACHE_VERSION = 'sjfd-shiftlog-v1.4.2';
+const CACHE_VERSION = 'sjfd-shiftlog-v1.5.0';
 const ASSETS = ['./', './index.html', './memo.js', './docx.js', './pdf-lib.min.js', './letterhead.js',
   './manifest.json', './icon.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE_VERSION).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });

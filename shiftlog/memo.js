@@ -68,7 +68,7 @@ var MemoLib = (function () {
 
   // ---- Month metadata carried forward. A new month inherits the previous month's standing
   // fields so nothing starts blank; the Task Book count is the one the user bumps each month.
-  const META_FIELDS = ['taskBook', 'targetSolutions', 'onlineCityTraining', 'policyStudy'];
+  const META_FIELDS = ['taskBook', 'targetSolutions', 'onlineCityTraining'];
   function monthsPresent(store) {
     const s = new Set();
     [...(store.shifts || []), ...(store.trainings || []), ...(store.events || [])].forEach(e => s.add(e.date.slice(0, 7)));
@@ -163,7 +163,6 @@ var MemoLib = (function () {
     // Pointer sentence only. The events themselves are printed in their own section, so this
     // is the first thing dropped when the memo needs to lose a line.
     if (events.length && !opts.omitEventPointer) s += ' Significant events during this period are detailed above.';
-    if (meta.narrativeNote && meta.narrativeNote.trim()) s += ' ' + sentence(meta.narrativeNote);
     // Collapse any gap left by an empty field so the memo never shows a hole in a sentence.
     return s.replace(/\u2014/g, '-').replace(/\s{2,}/g, ' ').replace(/\s+([.,])/g, '$1').trim();
   }
@@ -189,12 +188,12 @@ var MemoLib = (function () {
       targetSolutions: meta.targetSolutions || '', taskBook: meta.taskBook || '',
       onlineCityTraining: meta.onlineCityTraining || '',
       significantEvents, training,
-      policyNotes: meta.policyStudy || '',
+      additionalNotes: (meta.narrativeNote || '').trim(),
       narrative: narrative(ym, shifts, counts, settings, meta, events, opts),
       signature: settings.rank + ' ' + settings.name + '   |   ' + settings.unit,
       rankLabel: settings.rank,
     };
-    for (const k of ['narrative', 'training', 'significantEvents', 'policyNotes'])
+    for (const k of ['narrative', 'training', 'significantEvents', 'additionalNotes'])
       if (/\u2014/.test(data[k])) throw new Error('Em dash found in ' + k);
     return data;
   }
@@ -229,8 +228,10 @@ var MemoLib = (function () {
     h += head + lineCount(data.significantEvents, 9, F.bodyWidth) * F.bodyLine + F.bodyAfter;
     h += head + lineCount(data.training, 9, F.bodyWidth) * F.bodyLine + F.bodyAfter;
     h += head + lineCount(data.narrative, 9, F.bodyWidth) * F.bodyLine + 4;
-    const polIndent = textW('Additional Training:  ', 9, true);
-    h += lineCount(data.policyNotes, 9, F.bodyWidth, false, polIndent) * F.bodyLine + F.bodyAfter;
+    if (data.additionalNotes) {
+      const noteIndent = textW('Additional Notes:  ', 9, true);
+      h += lineCount(data.additionalNotes, 9, F.bodyWidth, false, noteIndent) * F.bodyLine + F.bodyAfter;
+    }
     h += (opts.tightSignature ? F.signatureTight : F.signatureNormal) + F.signatureLine;
     return h;
   }
@@ -341,7 +342,7 @@ var MemoLib = (function () {
     children.push(para([run(data.training)], { after: 60, line: 252 }));
     children.push(heading('EVALUATION SUMMARY'));
     children.push(para([run(data.narrative)], { after: 80, line: 252 }));
-    children.push(para([run('Additional Training:  ', { bold: true }), run(data.policyNotes)], { after: 60 }));
+    if (data.additionalNotes) children.push(para([run('Additional Notes:  ', { bold: true }), run(data.additionalNotes)], { after: 60 }));
     children.push(para([run('Respectfully submitted,')],
       opts.tightSignature ? { before: 60, after: 120 } : { before: 200, after: 300 }));
     children.push(para([run(data.signature, { bold: true })]));
@@ -437,8 +438,8 @@ var MemoLib = (function () {
     headingRule('SIGNIFICANT EVENTS'); paragraph(data.significantEvents, { after: 3 });
     headingRule('TRAINING & ACTIVITIES'); paragraph(data.training, { after: 3 });
     headingRule('EVALUATION SUMMARY'); paragraph(data.narrative, { after: 4 });
-    ensure(14); { const lab = 'Additional Training:  '; text(lab, L, y - 8, { bold: true });
-      const lw = bold.widthOfTextAtSize(lab, 9); const lines = wrap(data.policyNotes, reg, 9, CW - lw);
+    if (data.additionalNotes) { ensure(14); const lab = 'Additional Notes:  '; text(lab, L, y - 8, { bold: true });
+      const lw = bold.widthOfTextAtSize(lab, 9); const lines = wrap(data.additionalNotes, reg, 9, CW - lw);
       text(lines[0], L + lw, y - 8); y -= 11.3; for (const ln of lines.slice(1)) { text(ln, L, y - 8); y -= 11.3; } }
     y -= opts.tightSignature ? 3 : 10; ensure(40); text('Respectfully submitted,', L, y - 8);
     y -= opts.tightSignature ? 16 : 26; text(data.signature, L, y - 8, { bold: true });
@@ -454,14 +455,14 @@ var MemoLib = (function () {
     Object.keys(store.months || {}).forEach(m => months.add(m));
     for (const ym of [...months].sort()) {
       const m = (store.months && store.months[ym]) || {};
-      out.push(monthName(ym), '', 'Task Book: ' + (m.taskBook || ''), 'Target Solutions: ' + (m.targetSolutions || ''), 'Online City Training: ' + (m.onlineCityTraining || ''), 'Policy Study: ' + (m.policyStudy || ''), '');
+      out.push(monthName(ym), '', 'Task Book: ' + (m.taskBook || ''), 'Target Solutions: ' + (m.targetSolutions || ''), 'Online City Training: ' + (m.onlineCityTraining || ''), '');
       for (const sh of sortByDate((store.shifts || []).filter(e => e.date.startsWith(ym)))) out.push(shiftLine(sh));
       out.push('', 'Training:');
       for (const t of sortByDate((store.trainings || []).filter(e => e.date.startsWith(ym)))) out.push(mmdd(t.date) + ' | ' + t.name + ' | ' + fmtHr(t.hours) + ' hr');
       out.push('', 'Significant Events:');
       const ev = sortByDate((store.events || []).filter(e => e.date.startsWith(ym)));
       if (ev.length) ev.forEach(e => out.push(mmdd(e.date) + ' | ' + e.text)); else out.push('(none)');
-      if (m.narrativeNote) out.push('', 'Narrative note: ' + m.narrativeNote);
+      if (m.narrativeNote) out.push('', 'Additional Notes: ' + m.narrativeNote);
       out.push('');
     }
     return out.join('\n');
@@ -487,7 +488,7 @@ var MemoLib = (function () {
       if ((kv = line.match(/^Target Solutions:\s*(.*)$/i))) { res.months[ym].targetSolutions = kv[1].trim(); return; }
       if ((kv = line.match(/^Online City Training:\s*(.*)$/i))) { res.months[ym].onlineCityTraining = kv[1].trim(); return; }
       if ((kv = line.match(/^(?:Policy Study|Additional Training):\s*(.*)$/i))) { res.months[ym].policyStudy = kv[1].trim(); return; }
-      if ((kv = line.match(/^Narrative note:\s*(.*)$/i))) { res.months[ym].narrativeNote = kv[1].trim(); return; }
+      if ((kv = line.match(/^(?:Narrative note|Additional Notes):\s*(.*)$/i))) { res.months[ym].narrativeNote = kv[1].trim(); return; }
       if (/^Training:?$/i.test(line)) { section = 'training'; return; }
       if (/^Significant Events:?$/i.test(line)) { section = 'events'; return; }
       if (/^\(none\)$/i.test(line)) return;
