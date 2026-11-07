@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SJFD Shift Log</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shift Log">
+<meta name="theme-color" content="#2C3E5A">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.png">
+<style>
+  :root{--navy:#2C3E5A;--navy-dk:#1e2b40;--paper:#f5f6f8;--line:#c9cfd9;--red:#b3392e;--ink:#1a2333;
+    --muted:#5a6578;--muted-lt:#9aa4b5;--tint:#e8edf6;--ok:#2f7d4f}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%}
+  header{background:var(--navy);color:#fff;border-bottom:4px solid var(--red);padding:calc(env(safe-area-inset-top) + 14px) 16px 12px}
+  .wrap{max-width:720px;margin:0 auto}
+  .brand{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px}
+  .brand h1{font-size:20px;font-weight:800;margin:0}
+  .brand small{font-size:12px;opacity:.75}
+  .modes{display:flex;gap:4px;background:var(--navy-dk);border-radius:8px;padding:4px;margin-top:12px}
+  .modes button{flex:1;padding:10px 0;font-size:14px;font-weight:700;border:0;border-radius:6px;background:transparent;color:#c8d4e8;cursor:pointer}
+  .modes button[aria-pressed="true"]{background:#fff;color:var(--navy)}
+  main{padding:16px 16px calc(env(safe-area-inset-bottom) + 84px)}
+  .tab{display:none}.tab.on{display:block}
+  nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+  nav button{flex:1;padding:10px 0 8px;border:0;background:transparent;font-size:11px;font-weight:700;color:var(--muted-lt);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+  nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  nav button[aria-current="page"]{color:var(--navy)}
+  .readout{background:var(--navy-dk);border-radius:8px;padding:14px 14px 12px;margin-bottom:18px;box-shadow:0 2px 10px rgba(34,48,74,.25)}
+  .readout .cap{font-size:11px;color:#8fa3c4;font-weight:600;margin-bottom:6px}
+  .mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+  #line{font-size:14px;line-height:1.5;color:#eaf0fa;word-break:break-word;min-height:22px}
+  .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+  .btn{border:0;border-radius:6px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn-red{background:var(--red);color:#fff}
+  .btn-ghost{background:transparent;color:#c8d4e8;border:1px solid #4a5c7e;font-weight:600}
+  .btn-navy{background:var(--navy);color:#fff}
+  .btn-outline{background:#fff;color:var(--navy);border:1px solid var(--line);font-weight:600}
+  .btn-outline-red{background:transparent;color:var(--red);border:1px solid var(--red);font-weight:600}
+  .btn:disabled{opacity:.45;cursor:default}
+  label.lbl{display:block;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:5px}
+  select,input[type=text],input[type=number],textarea{width:100%;padding:10px 12px;font-size:16px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-family:inherit}
+  textarea{resize:vertical}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+  .span2{grid-column:1/-1}.row{display:flex;gap:6px}.hidden{display:none !important}
+  .counts{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:18px}
+  .count{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+  .count.on{background:var(--tint);border-color:var(--navy)}
+  .count .code{font-size:13px;font-weight:700;color:var(--navy)}
+  .count .name{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+  .stepper{display:flex;align-items:center;gap:6px}
+  .stepper button{width:30px;height:30px;border-radius:6px;font-size:17px;cursor:pointer;line-height:1}
+  .stepper .dec{border:1px solid var(--line);background:#fff;color:var(--navy)}
+  .stepper .inc{border:0;background:var(--navy);color:#fff}
+  .stepper .val{min-width:18px;text-align:center;font-weight:700;font-size:15px;color:var(--muted-lt)}
+  .count.on .val{color:var(--navy)}
+  .stepper.big button{width:42px;height:42px;font-size:18px}.stepper.big .val{min-width:40px;font-size:18px;color:var(--navy)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+  .card h2{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 10px}
+  .card h2 span{font-weight:400;color:var(--muted)}
+  .entry{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--paper);font-size:12.5px}
+  .entry:first-of-type{border-top:0}
+  .entry span{word-break:break-word}
+  .entry button{border:0;background:transparent;color:var(--muted-lt);cursor:pointer;font-size:17px;padding:0 4px}
+  .empty{font-size:13px;color:var(--muted);padding:6px 0}
+  .stat{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--paper);font-size:14px}
+  .stat:first-of-type{border-top:0}.stat b{color:var(--navy)}
+  .big{font-size:28px;font-weight:800;color:var(--navy);line-height:1}
+  .warn{background:#fdf1ec;border:1px solid #efc7bb;color:#7a2a20;border-radius:6px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+  .note{font-size:12px;color:#7a8496;line-height:1.5;margin:12px 0 0}
+  .field{margin-bottom:12px}
+  .help summary{font-size:13px;font-weight:700;color:var(--navy);cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+  .help summary::-webkit-details-marker{display:none}
+  .help summary::after{content:"Show";font-size:12px;font-weight:400;color:var(--muted)}
+  .help[open] summary::after{content:"Hide"}
+  .help ol{margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.6;color:#3a4356}
+  .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 76px);transform:translateX(-50%);background:var(--navy-dk);color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+  .toast.on{opacity:1}
+  button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="setup" class="hidden" style="position:fixed;inset:0;z-index:40;background:var(--paper);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="background:var(--navy);color:#fff;border-bottom:4px solid var(--red);padding:calc(env(safe-area-inset-top) + 22px) 16px 18px">
+    <div class="wrap">
+      <div style="font-size:11px;letter-spacing:.18em;opacity:.75;font-weight:600">SJFD SHIFT LOG</div>
+      <div style="font-size:22px;font-weight:800;margin-top:2px">Set up</div>
+      <div style="font-size:13px;opacity:.8;margin-top:6px;line-height:1.5">Whose memo is this? These go on every memo you generate. You can change them later in Settings.</div>
+    </div>
+  </div>
+  <div class="wrap" style="padding:16px 16px calc(env(safe-area-inset-bottom) + 40px)">
+    <div class="card">
+      <div class="grid" style="margin-bottom:0">
+        <div class="field"><label class="lbl" for="suRank">Rank</label><input type="text" id="suRank" placeholder="CA" autocapitalize="characters"></div>
+        <div class="field"><label class="lbl" for="suName">Full name</label><input type="text" id="suName" placeholder="Matt Lawton" autocapitalize="words"></div>
+        <div class="field"><label class="lbl" for="suBadge">Badge <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="text" id="suBadge" placeholder="944"></div>
+        <div class="field"><label class="lbl" for="suUnit">Unit code</label><input type="text" id="suUnit" placeholder="RB2C" autocapitalize="characters"></div>
+        <div class="field span2"><label class="lbl" for="suTo">Memo goes to</label><input type="text" id="suTo" placeholder="BC Leia Diaz" autocapitalize="words"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Standing training <span>(optional)</span></h2>
+      <p style="font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 10px">If you do the same training on most shifts, name it here and the shift form gets a one-tap box to log it. Leave blank to hide that box.</p>
+      <div class="grid" style="margin-bottom:0">
+        <div class="field"><label class="lbl" for="suPerName">Training</label><input type="text" id="suPerName" placeholder="QAB Study"></div>
+        <div class="field"><label class="lbl" for="suPerHours">Hours</label><input type="number" id="suPerHours" step="0.5" min="0.5" max="24" placeholder="2"></div>
+      </div>
+    </div>
+    <div id="suErr" class="hidden warn"></div>
+    <button class="btn btn-red" id="suGo" style="width:100%;padding:14px;font-size:16px">Start logging</button>
+    <p class="note">Everything stays on this phone. Nothing is sent anywhere, and the app works with no signal.</p>
+  </div>
+</div>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><div><div style="font-size:11px;opacity:.75;font-weight:600">SJFD shift log</div><h1 id="hdrTitle">Log</h1></div><small id="hdrWho"></small></div>
+    <div class="modes" id="modes" role="group" aria-label="Entry type">
+      <button data-mode="shift" aria-pressed="true">Shift</button>
+      <button data-mode="training" aria-pressed="false">Training</button>
+      <button data-mode="event" aria-pressed="false">Event</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+<!-- ================= LOG ================= -->
+<section class="tab on" id="tab-log">
+  <details class="help card">
+    <summary>How this works</summary>
+    <ol>
+      <li>After each shift, pick Shift, Training or Event, fill in the fields and tap <b>Save entry</b>. Tick the box under the shift note to log your standing training on the same date in the same tap.</li>
+      <li>Tap any entry in a list to edit it. Shifts that repeat a date, time and apparatus are flagged as duplicates.</li>
+      <li>On the <b>Month</b> tab, Task Book and the other standing fields carry over from last month, so only the Task Book count usually needs changing. There is also a button to add your standing training to every shift that has none.</li>
+      <li>At month end, go to <b>Generate</b> and tap Word or PDF. The memo is built on the phone and opens in the share sheet. The app compacts spacing on its own to hold one page, and says so when a month genuinely needs two.</li>
+      <li>Export from <b>Settings</b> now and then. Entries live only on this phone.</li>
+    </ol>
+  </details>
+
+  <div id="editBar" class="hidden" style="background:#fdf1ec;border:1px solid #efc7bb;border-radius:8px;padding:10px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+    <span style="font-size:13px;color:#7a2a20">Editing a saved entry. Saving replaces it.</span>
+    <button class="btn btn-outline" id="cancelEdit" style="padding:6px 12px;font-size:13px">Cancel</button>
+  </div>
+
+  <section class="readout">
+    <div class="cap" id="cap">Entry preview</div>
+    <div id="line" class="mono"></div>
+    <div class="actions">
+      <button class="btn btn-red" id="saveEntry">Save entry</button>
+      <button class="btn btn-ghost" id="copyLine">Copy line</button>
+      <span id="calls" style="font-size:12px;color:#8fa3c4;margin-left:auto">0 calls</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div>
+      <label class="lbl">Date</label>
+      <div class="row"><select id="month" aria-label="Month"></select><select id="day" aria-label="Day"></select></div>
+    </div>
+    <div data-for="shift"><label class="lbl" for="time">Time</label><select id="time"></select><input type="text" id="timeCustom" class="hidden" placeholder="e.g. 0600-1800" style="margin-top:6px"></div>
+    <div data-for="shift"><label class="lbl" for="app">Apparatus</label><select id="app"></select><input type="text" id="appCustom" class="hidden" placeholder="e.g. T13" style="margin-top:6px"></div>
+    <div data-for="shift"><label class="lbl" for="bc">Battalion Chief</label><select id="bc"></select><input type="text" id="bcCustom" class="hidden" placeholder="e.g. BC Nguyen" style="margin-top:6px"></div>
+    <div data-for="training" class="span2 hidden"><label class="lbl" for="training">Training</label><select id="training"></select><input type="text" id="trainingCustom" class="hidden" placeholder="e.g. Forcible entry" style="margin-top:6px"></div>
+    <div data-for="training" class="hidden"><label class="lbl">Hours</label>
+      <div class="stepper big"><button class="dec" id="hrDec" aria-label="Decrease hours">−</button><span class="val" id="hrVal">1</span><button class="inc" id="hrInc" aria-label="Increase hours">+</button></div></div>
+    <div data-for="event" class="span2 hidden"><label class="lbl" for="eventText">Event description</label>
+      <textarea id="eventText" rows="3" placeholder="One clean sentence, e.g. Assisted with second alarm commercial fire on Tully Rd, operated supply line."></textarea></div>
+  </div>
+  <div data-for="shift">
+    <label class="lbl">Incident counts</label>
+    <div class="counts" id="counts"></div>
+    <label class="lbl" for="note">Shift note (optional)</label>
+    <input type="text" id="note" placeholder="Appears in the memo's shift table" style="margin-bottom:12px">
+    <label id="alsoWrap" style="display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:18px;font-size:14px;cursor:pointer">
+      <input type="checkbox" id="alsoTrain" style="width:20px;height:20px;flex:0 0 auto;margin:0">
+      <span id="alsoLabel">Also log QAB Study (2 hr) on this date</span>
+    </label>
+  </div>
+  <div class="card"><h2 id="recentTitle">Recent entries</h2><div id="recent"></div></div>
+</section>
+
+<!-- ================= MONTH ================= -->
+<section class="tab" id="tab-month">
+  <div class="field"><label class="lbl" for="mSel">Month</label><select id="mSel"></select></div>
+  <div class="card">
+    <h2>Month details</h2>
+    <div id="inheritNote" class="hidden" style="background:var(--tint);border:1px solid #b8c6e0;border-radius:6px;padding:9px 11px;margin-bottom:12px;font-size:12.5px;color:#2b3b55"></div>
+    <div class="field"><label class="lbl" for="taskBook">Task Book <span style="font-weight:400;color:var(--muted)">(e.g. 24 of 36)</span></label><input type="text" id="taskBook" placeholder="24 of 36"></div>
+    <div class="field"><label class="lbl" for="targetSolutions">Target Solutions</label><input type="text" id="targetSolutions" placeholder="Current"></div>
+    <div class="field"><label class="lbl" for="policyStudy">Policy Study</label><input type="text" id="policyStudy" placeholder="Studied the Department Policies/QAB Preparation"></div>
+    <div class="field"><label class="lbl" for="narrativeNote">Extra narrative sentence <span style="font-weight:400;color:var(--muted)">(optional, appended to the evaluation summary)</span></label><input type="text" id="narrativeNote" placeholder="Training this month included sustained QAB preparation totaling 8 hours"></div>
+  </div>
+  <div class="card"><h2>Shifts <span id="mShiftN"></span></h2><div id="mShifts"></div></div>
+  <div class="card"><h2>Training <span id="mTrainN"></span></h2>
+    <div id="bulkWrap" class="hidden" style="margin-bottom:10px">
+      <button class="btn btn-outline" id="bulkTrain" style="width:100%;padding:9px 12px;font-size:13px"></button>
+    </div>
+    <div id="mTrain"></div></div>
+  <div class="card"><h2>Significant events <span id="mEventN"></span></h2><div id="mEvents"></div></div>
+</section>
+
+<!-- ================= GENERATE ================= -->
+<section class="tab" id="tab-gen">
+  <div class="field"><label class="lbl" for="gSel">Month</label><select id="gSel"></select></div>
+  <div id="gWarn"></div>
+  <div class="card">
+    <h2>Totals</h2>
+    <div style="display:flex;gap:24px;align-items:flex-end;margin-bottom:10px">
+      <div><div class="big" id="gTotal">0</div><div style="font-size:12px;color:var(--muted)">incidents</div></div>
+      <div><div class="big" id="gShifts">0</div><div style="font-size:12px;color:var(--muted)">shifts</div></div>
+      <div><div class="big" id="gHours">0</div><div style="font-size:12px;color:var(--muted)">training hrs</div></div>
+    </div>
+    <div id="gBreak"></div>
+  </div>
+  <div class="card"><h2>Evaluation summary</h2><div id="gNarr" style="font-size:13.5px;line-height:1.55"></div></div>
+  <div class="card"><h2>Training &amp; events</h2><div id="gTrain" style="font-size:13px;line-height:1.5;margin-bottom:8px"></div><div id="gEvents" style="font-size:13px;line-height:1.5"></div></div>
+  <div class="actions" style="margin-top:4px">
+    <button class="btn btn-red" id="genDocx">Word (.docx)</button>
+    <button class="btn btn-navy" id="genPdf">PDF</button>
+    <button class="btn btn-outline" id="copyMonthText">Copy month as text</button>
+  </div>
+  <p class="note" id="gFit"></p>
+  <div id="backupNote" class="hidden card" style="margin-top:14px;border-color:#b8c6e0;background:var(--tint)">
+    <h2 style="margin-bottom:6px">Memo built. Back up the log?</h2>
+    <p style="font-size:13px;line-height:1.5;margin:0 0 10px;color:#2b3b55">Entries live only on this phone. An export now means a month of work is never one broken screen away from gone.</p>
+    <div class="actions" style="margin:0"><button class="btn btn-navy" id="backupNow">Export log</button><button class="btn btn-outline" id="backupLater">Not now</button></div>
+  </div>
+  <p class="note">Files open in the share sheet. Save to Files, AirDrop, or send by email. The memo is dated the day you build it.</p>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section class="tab" id="tab-settings">
+  <div class="card">
+    <h2>Who this memo is for</h2>
+    <div class="grid" style="margin-bottom:0">
+      <div class="field"><label class="lbl" for="sRank">Rank</label><input type="text" id="sRank"></div>
+      <div class="field"><label class="lbl" for="sName">Name</label><input type="text" id="sName"></div>
+      <div class="field"><label class="lbl" for="sBadge">Badge</label><input type="text" id="sBadge"></div>
+      <div class="field"><label class="lbl" for="sUnit">Unit code</label><input type="text" id="sUnit"></div>
+      <div class="field span2"><label class="lbl" for="sTo">Memo recipient</label><input type="text" id="sTo"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Dropdown options <span>(one per line)</span></h2>
+    <div class="field"><label class="lbl" for="sTimes">Shift times</label><textarea id="sTimes" rows="3"></textarea></div>
+    <div class="field"><label class="lbl" for="sApps">Apparatus</label><textarea id="sApps" rows="4"></textarea></div>
+    <div class="field"><label class="lbl" for="sBcs">Battalion Chiefs</label><textarea id="sBcs" rows="4"></textarea></div>
+    <div class="field"><label class="lbl" for="sTrain">Trainings</label><textarea id="sTrain" rows="4"></textarea></div>
+  </div>
+  <div class="card">
+    <h2>Per-shift training <span>(the one-tap option on the shift form)</span></h2>
+    <div class="grid" style="margin-bottom:0">
+      <div class="field"><label class="lbl" for="sPerName">Training</label><input type="text" id="sPerName" placeholder="QAB Study"></div>
+      <div class="field"><label class="lbl" for="sPerHours">Hours</label><input type="number" id="sPerHours" step="0.5" min="0.5" max="24"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Backup</h2>
+    <div class="actions" style="margin:0 0 10px"><button class="btn btn-navy" id="exportBtn">Export log as text</button><button class="btn btn-outline" id="copyExport">Copy log text</button></div>
+    <label class="lbl" for="importText">Import <span style="font-weight:400;color:var(--muted)">(paste an exported log, or the SJFD Shift Log doc)</span></label>
+    <textarea id="importText" rows="5" placeholder="June 2026&#10;Task Book: 24 of 36&#10;06/01 | 0800-0800 | E5 | BC Lovens | ems 12, mvc 1"></textarea>
+    <div class="actions"><button class="btn btn-outline" id="importBtn">Import entries</button><span id="importMsg" style="font-size:12px;color:var(--muted)"></span></div>
+    <p class="note">Import adds entries it doesn't already have and never deletes anything. Entries stay on this phone only; export before switching devices.</p>
+  </div>
+  <div class="card">
+    <h2>Danger zone</h2>
+    <button class="btn btn-outline-red" id="resetBtn">Delete all entries on this phone</button>
+  </div>
+  <p class="note" id="version"></p>
+</section>
+</main>
+
+<nav>
+  <button data-tab="log" aria-current="page"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Log</button>
+  <button data-tab="month"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Month</button>
+  <button data-tab="gen"><svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z M14 2v6h6 M9 13h6M9 17h6"/></svg>Generate</button>
+  <button data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>if(!window.setImmediate) window.setImmediate=function(fn){return setTimeout(fn,0);};</script>
+<script src="docx.js"></script>
+<script src="pdf-lib.min.js"></script>
+<script src="letterhead.js"></script>
+<script src="memo.js"></script>
+<script>
+(function(){
+  const APP_VERSION = '1.2.0';
+  const M = MemoLib, $ = id => document.getElementById(id), pad2 = n => String(n).padStart(2,'0');
+  const DEFAULTS = {
+    // Identity starts empty so a new install asks whose memo this is. The lists below are
+    // department-wide starting points, not personal, and stay editable in Settings.
+    settings: { rank:'', name:'', badge:'', unit:'', to:'',
+      times:['0800-0800','0800-2000','2000-0800'], apparatus:['E2','E5','E6','E21','E26','E30','T2','T30'],
+      bcs:['BC Allread','BC Diaz','BC Herrera','BC Lovens','BC Vega'],
+      trainings:['QAB Study','Fire Suppression Techniques','Deep lot hose deployment','Change over and hose deployment','Ground ladders'],
+      perShiftTraining:'QAB Study', perShiftHours:2 },
+    shifts:[], trainings:[], events:[], months:{}
+  };
+  let store; try { store = JSON.parse(localStorage.getItem('sjfd-store')); } catch(e){}
+  if (!store || !store.settings) store = JSON.parse(JSON.stringify(DEFAULTS));
+  store.settings = Object.assign({}, DEFAULTS.settings, store.settings);
+  ['shifts','trainings','events'].forEach(k => store[k] = store[k] || []); store.months = store.months || {};
+  const save = () => { try { localStorage.setItem('sjfd-store', JSON.stringify(store)); } catch(e){ toast('Could not save: storage full or blocked'); } };
+  const lhBytes = Uint8Array.from(atob(LETTERHEAD_B64), c => c.charCodeAt(0));
+  const now = new Date(), thisYm = now.getFullYear() + '-' + pad2(now.getMonth()+1);
+  let mode = 'shift', counts = {}, hours = 1, curMonth = thisYm, genMonth = thisYm;
+  let editing = null;        // {id, kind} while a saved entry is open for editing
+  let lastGenerated = null;  // ym of the last memo built, used for the backup nudge
+
+  function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),1800); }
+  function fill(sel, opts, custom, keep){ const v = sel.value; sel.innerHTML='';
+    opts.forEach(o=>{const e=document.createElement('option');e.textContent=o;e.value=o;sel.appendChild(e);});
+    if(custom){const e=document.createElement('option');e.value='custom';e.textContent=custom;sel.appendChild(e);}
+    if(keep && [...sel.options].some(o=>o.value===v)) sel.value=v; }
+  function monthsWithData(){ const s=new Set([thisYm]); [...store.shifts,...store.trainings,...store.events].forEach(e=>s.add(e.date.slice(0,7))); Object.keys(store.months).forEach(m=>s.add(m)); return [...s].sort().reverse(); }
+  function fillMonthSel(sel, cur){ sel.innerHTML=''; monthsWithData().forEach(ym=>{const e=document.createElement('option');e.value=ym;e.textContent=M.monthName(ym);sel.appendChild(e);}); sel.value=cur; }
+  const of = (arr, ym) => arr.filter(e=>e.date.startsWith(ym)).sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||'')));
+
+  // ---------- Log tab
+  fill($('month'), Array.from({length:12},(_,i)=>pad2(i+1))); $('month').value=pad2(now.getMonth()+1);
+  function fillDays(){ const m=+$('month').value, dim=new Date(now.getFullYear(),m,0).getDate(); const cur=+($('day').value||now.getDate());
+    fill($('day'),Array.from({length:dim},(_,i)=>pad2(i+1))); $('day').value=pad2(Math.min(cur,dim)); }
+  fillDays();
+  function fillLists(){ const s=store.settings; fill($('time'),s.times,'Custom…',true); fill($('app'),s.apparatus,'Other…',true); fill($('bc'),s.bcs,'Other…',true); fill($('training'),s.trainings,'Other…',true); }
+  fillLists();
+  const cWrap=$('counts');
+  M.CODE_ORDER.forEach(code=>{ const c=M.byCode[code]; const d=document.createElement('div'); d.className='count'; d.dataset.key=c.key;
+    d.innerHTML=`<div><div class="code mono">${code}</div><div class="name">${c.label}</div></div><div class="stepper"><button class="dec" aria-label="Decrease ${c.label}">−</button><span class="val">0</span><button class="inc" aria-label="Increase ${c.label}">+</button></div>`;
+    d.querySelector('.dec').onclick=()=>bump(c.key,-1); d.querySelector('.inc').onclick=()=>bump(c.key,1); cWrap.appendChild(d); });
+  function bump(key,delta){ const v=Math.max(0,(counts[key]||0)+delta); if(v===0) delete counts[key]; else counts[key]=v;
+    const el=cWrap.querySelector(`[data-key="${key}"]`); el.querySelector('.val').textContent=v; el.classList.toggle('on',v>0); renderLog(); }
+  function resetCounts(){ counts={}; cWrap.querySelectorAll('.count').forEach(el=>{el.classList.remove('on');el.querySelector('.val').textContent='0';}); }
+  function val(selId,customId){ const s=$(selId); return s.value==='custom'?$(customId).value.trim():s.value; }
+  function entryDate(){ const m=+$('month').value; let y=now.getFullYear(); if(m>now.getMonth()+1 && m-(now.getMonth()+1)>6) y--; return y+'-'+pad2(m)+'-'+$('day').value; }
+  function currentEntry(){ const date=entryDate();
+    if(mode==='training') return {id:M.uid(),date,name:val('training','trainingCustom'),hours};
+    if(mode==='event') return {id:M.uid(),date,text:$('eventText').value.trim()};
+    return {id:M.uid(),date,time:val('time','timeCustom'),apparatus:val('app','appCustom'),bc:val('bc','bcCustom'),counts:Object.assign({},counts),notes:$('note').value.trim()}; }
+  function lineFor(e,kind){ if(kind==='training') return M.mmdd(e.date)+' | '+e.name+' | '+M.fmtHr(e.hours)+' hr'; if(kind==='event') return M.mmdd(e.date)+' | '+e.text; return M.shiftLine(e); }
+  function renderLog(){ const e=currentEntry(); $('line').textContent=lineFor(e,mode);
+    const pn=(store.settings.perShiftTraining||'').trim(), ph=Number(store.settings.perShiftHours)||0;
+    $('alsoWrap').classList.toggle('hidden', !(pn&&ph>0) || !!editing);
+    $('alsoLabel').textContent='Also log '+pn+' ('+M.fmtHr(ph)+' hr) on this date';
+    $('cap').textContent=mode==='training'?'Training entry':mode==='event'?'Significant event':'Shift entry';
+    const t=Object.values(counts).reduce((a,b)=>a+b,0); $('calls').textContent=`${t} call${t===1?'':'s'}`; $('calls').classList.toggle('hidden',mode!=='shift');
+    document.querySelectorAll('[data-for]').forEach(el=>el.classList.toggle('hidden',el.dataset.for!==mode));
+    const ym=e.date.slice(0,7); const arr=mode==='training'?store.trainings:mode==='event'?store.events:store.shifts;
+    const list=of(arr,ym); $('recentTitle').innerHTML=`${M.monthName(ym)} <span>${list.length} ${mode==='training'?'training':mode==='event'?'event':'shift'}${list.length===1?'':'s'}</span>`;
+    renderList($('recent'), list, mode, 'Nothing logged yet this month.'); }
+  const arrFor = kind => kind==='training'?store.trainings:kind==='event'?store.events:store.shifts;
+  function renderList(el, list, kind, emptyMsg){ el.innerHTML=''; if(!list.length){ el.innerHTML=`<div class="empty">${emptyMsg}</div>`; return; }
+    const dups = kind==='shift' ? M.duplicateIds(store.shifts) : new Set();
+    list.forEach(e=>{ const d=document.createElement('div'); d.className='entry';
+      const s=document.createElement('span'); s.className='mono'; s.textContent=lineFor(e,kind);
+      s.style.cursor='pointer'; s.title='Tap to edit';
+      s.onclick=()=>startEdit(e,kind);
+      const wrap=document.createElement('span'); wrap.style.cssText='display:flex;flex-direction:column;gap:2px;min-width:0'; wrap.appendChild(s);
+      if(dups.has(e.id)){ const w=document.createElement('span');
+        w.style.cssText='font-size:11px;color:var(--red);font-weight:700'; w.textContent='Duplicate of an earlier shift'; wrap.appendChild(w);
+        d.style.background='#fdf1ec'; d.style.borderRadius='4px'; }
+      const b=document.createElement('button'); b.textContent='×'; b.setAttribute('aria-label','Delete entry');
+      b.onclick=()=>{ if(!confirm('Delete this entry?\n\n'+lineFor(e,kind))) return; const arr=arrFor(kind); const i=arr.findIndex(x=>x.id===e.id); if(i>=0) arr.splice(i,1); if(editing&&editing.id===e.id) cancelEdit(); save(); renderAll(); toast('Deleted'); };
+      d.append(wrap,b); el.appendChild(d); }); }
+
+  // ---------- Editing a saved entry: load it back into the form, then replace on save.
+  function startEdit(e,kind){
+    editing={id:e.id,kind};
+    document.querySelector('#modes [data-mode="'+kind+'"]').click();
+    $('month').value=e.date.slice(5,7); fillDays(); $('day').value=e.date.slice(8,10);
+    const setSel=(selId,customId,v)=>{ const sel=$(selId);
+      if([...sel.options].some(o=>o.value===v)){ sel.value=v; $(customId).classList.add('hidden'); }
+      else { sel.value='custom'; $(customId).classList.remove('hidden'); $(customId).value=v||''; } };
+    if(kind==='shift'){
+      setSel('time','timeCustom',e.time); setSel('app','appCustom',e.apparatus); setSel('bc','bcCustom',e.bc);
+      counts=Object.assign({},e.counts||{});
+      cWrap.querySelectorAll('.count').forEach(el=>{ const v=counts[el.dataset.key]||0;
+        el.querySelector('.val').textContent=v; el.classList.toggle('on',v>0); });
+      $('note').value=e.notes||''; $('alsoTrain').checked=false;
+    } else if(kind==='training'){ setSel('training','trainingCustom',e.name); hours=Number(e.hours)||1; $('hrVal').textContent=M.fmtHr(hours); }
+    else { $('eventText').value=e.text||''; }
+    $('editBar').classList.remove('hidden'); $('saveEntry').textContent='Save changes';
+    document.querySelector('nav [data-tab="log"]').click();
+    renderLog(); window.scrollTo(0,0);
+  }
+  function cancelEdit(){ editing=null; $('editBar').classList.add('hidden'); $('saveEntry').textContent='Save entry';
+    resetCounts(); $('note').value=''; $('eventText').value=''; renderLog(); }
+  $('cancelEdit').onclick=cancelEdit;
+  async function copy(text,btn,label){ try{ await navigator.clipboard.writeText(text); }catch(e){ const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove(); }
+    if(btn){ btn.textContent='Copied'; setTimeout(()=>btn.textContent=label,1400);} }
+
+  document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>{ mode=b.dataset.mode; document.querySelectorAll('#modes button').forEach(x=>x.setAttribute('aria-pressed',x===b)); renderLog(); });
+  $('month').onchange=()=>{fillDays();renderLog();}; ['day','time','app','bc','training'].forEach(id=>$(id).onchange=renderLog);
+  [['time','timeCustom'],['app','appCustom'],['bc','bcCustom'],['training','trainingCustom']].forEach(([s,c])=>{ $(s).addEventListener('change',()=>$(c).classList.toggle('hidden',$(s).value!=='custom')); $(c).oninput=renderLog; });
+  $('note').oninput=renderLog; $('eventText').oninput=renderLog;
+  $('hrDec').onclick=()=>{hours=Math.max(0.5,hours-0.5);$('hrVal').textContent=M.fmtHr(hours);renderLog();};
+  $('hrInc').onclick=()=>{hours=Math.min(24,hours+0.5);$('hrVal').textContent=M.fmtHr(hours);renderLog();};
+  $('copyLine').onclick=e=>copy($('line').textContent,e.target,'Copy line');
+  $('saveEntry').onclick=()=>{ const e=currentEntry();
+    if(mode==='event' && !e.text){ toast('Type the event first'); return; }
+    if(mode==='training' && !e.name){ toast('Pick a training'); return; }
+    if(mode==='shift' && (!e.time||!e.apparatus||!e.bc)){ toast('Fill in time, apparatus and BC'); return; }
+    const arr=arrFor(mode);
+    if(editing){
+      const i=arr.findIndex(x=>x.id===editing.id);
+      if(i<0){ toast('That entry is gone'); cancelEdit(); return; }
+      e.id=editing.id; arr[i]=e; save(); cancelEdit(); renderAll(); toast('Updated'); return;
+    }
+    if(mode==='shift' && store.shifts.some(s=>s.date===e.date&&s.time===e.time&&s.apparatus===e.apparatus)
+       && !confirm('A shift with this date, time and apparatus is already logged. Save another?')) return;
+    arr.push(e);
+    // Companion training entry, so the common "QAB study on every shift" case is one tap.
+    let extra='';
+    if(mode==='shift' && $('alsoTrain').checked){
+      const n=(store.settings.perShiftTraining||'').trim(), h=Number(store.settings.perShiftHours)||0;
+      if(n && h>0){ store.trainings.push({id:M.uid(),date:e.date,name:n,hours:h}); extra=' + '+n; }
+    }
+    // A new month starts from the previous month's standing fields instead of blank.
+    const filled=M.inheritMeta(store,e.date.slice(0,7));
+    save();
+    if(mode==='shift'){resetCounts();$('note').value='';} if(mode==='event') $('eventText').value='';
+    renderAll();
+    toast(filled.length ? 'Saved'+extra+'. Month details carried over' : 'Saved'+extra); };
+
+  // ---------- Month tab
+  const metaFields=['taskBook','targetSolutions','policyStudy','narrativeNote'];
+  function renderMonth(){ fillMonthSel($('mSel'),curMonth); const m=store.months[curMonth]||{}; metaFields.forEach(f=>$(f).value=m[f]||'');
+    // Offer the previous month's standing fields when this month still has blanks.
+    const blanks=M.META_FIELDS.filter(f=>!(m[f]||'').trim()), prior=M.priorMeta(store,curMonth);
+    const note=$('inheritNote');
+    if(blanks.length && prior){
+      note.classList.remove('hidden');
+      note.innerHTML='Blank here, filled in '+M.monthName(prior.month)+'. '+
+        '<button class="btn btn-navy" id="doInherit" style="padding:5px 10px;font-size:12px;margin-left:4px">Copy forward</button>';
+      $('doInherit').onclick=()=>{ const f=M.inheritMeta(store,curMonth); save(); renderAll();
+        toast(f.length?'Copied '+f.length+' field'+(f.length===1?'':'s'):'Nothing to copy'); };
+    } else note.classList.add('hidden');
+    // Bulk training: fill in shifts that have no training logged on their date.
+    const shiftDates=[...new Set(of(store.shifts,curMonth).map(s=>s.date))];
+    const trained=new Set(of(store.trainings,curMonth).map(t=>t.date));
+    const missing=shiftDates.filter(d=>!trained.has(d));
+    const pn=(store.settings.perShiftTraining||'').trim(), ph=Number(store.settings.perShiftHours)||0;
+    const bw=$('bulkWrap');
+    if(missing.length && pn && ph>0){
+      bw.classList.remove('hidden');
+      $('bulkTrain').textContent='Add '+pn+' ('+M.fmtHr(ph)+' hr) to '+missing.length+' shift'+(missing.length===1?'':'s')+' with no training';
+      $('bulkTrain').onclick=()=>{ if(!confirm('Add '+pn+' ('+M.fmtHr(ph)+' hr) on '+missing.length+' date'+(missing.length===1?'':'s')+'?')) return;
+        missing.forEach(d=>store.trainings.push({id:M.uid(),date:d,name:pn,hours:ph}));
+        save(); renderAll(); toast('Added '+missing.length+' training entr'+(missing.length===1?'y':'ies')); };
+    } else bw.classList.add('hidden');
+    const sh=of(store.shifts,curMonth), tr=of(store.trainings,curMonth), ev=of(store.events,curMonth);
+    $('mShiftN').textContent=sh.length; $('mTrainN').textContent=tr.length+' ('+M.fmtHr(tr.reduce((a,t)=>a+(+t.hours||0),0))+' hr)'; $('mEventN').textContent=ev.length;
+    renderList($('mShifts'),sh,'shift','No shifts logged.'); renderList($('mTrain'),tr,'training','No training logged.'); renderList($('mEvents'),ev,'event','No significant events. The memo will say so.'); }
+  $('mSel').onchange=()=>{curMonth=$('mSel').value;renderMonth();};
+  metaFields.forEach(f=>$(f).oninput=()=>{ store.months[curMonth]=store.months[curMonth]||{}; store.months[curMonth][f]=$(f).value; save(); });
+
+  // ---------- Generate tab
+  let fitted=null;
+  function renderGen(){ fillMonthSel($('gSel'),genMonth); const w=[]; let data=null; fitted=null;
+    try { fitted=M.buildFitted(genMonth,store); data=fitted.data; } catch(e){ w.push(e.message); }
+    const meta=store.months[genMonth]||{};
+    if(data && !data.shiftsWorked) w.push('No shifts logged for '+M.monthName(genMonth)+'.');
+    const blank=M.META_FIELDS.filter(f=>!(meta[f]||'').trim());
+    if(blank.length) w.push(({taskBook:'Task Book',targetSolutions:'Target Solutions',policyStudy:'Policy Study'})
+      && blank.map(f=>({taskBook:'Task Book',targetSolutions:'Target Solutions',policyStudy:'Policy Study'})[f]).join(', ')
+      +' blank on the Month tab, so '+(blank.length===1?'it is':'they are')+' left out of the memo.');
+    const dups=M.duplicateIds(of(store.shifts,genMonth));
+    if(dups.size) w.push(dups.size+' shift'+(dups.size===1?'':'s')+' duplicated (same date, time and apparatus). Check the Month tab.');
+    if(data && !data.training) w.push('No training logged; the Training section will be empty.');
+    if(data && !fitted.onePage) w.push('This runs to two pages, about '+fitted.overBy+' points over. Shortening a shift note or an event would pull it back.');
+    // A memo with no name on it is worse than no memo, so block rather than build one.
+    const idGaps=[['rank','Rank'],['name','Name'],['unit','Unit code'],['to','Memo recipient']]
+      .filter(([f])=>!(store.settings[f]||'').trim()).map(([,l])=>l);
+    if(idGaps.length) w.push(idGaps.join(', ')+' missing in Settings. Fill '+(idGaps.length===1?'it':'them')+' in before generating.');
+    $('gWarn').innerHTML=w.map(x=>`<div class="warn">${x}</div>`).join('');
+    const ok=!!data && !idGaps.length; $('genDocx').disabled=!ok; $('genPdf').disabled=!ok; if(!data) return;
+    $('gFit').textContent = fitted.onePage
+      ? (fitted.adjustments.length ? 'Fits one page. To get there the app '+fitted.adjustments.join(', ')+'.' : 'Fits one page.')
+      : 'Two pages.';
+    $('gTotal').textContent=data.counts.total; $('gShifts').textContent=data.shiftsWorked;
+    $('gHours').textContent=M.fmtHr(of(store.trainings,genMonth).reduce((a,t)=>a+(+t.hours||0),0));
+    $('gBreak').innerHTML=M.CATS.filter(c=>data.counts[c.key]>0).sort((a,b)=>data.counts[b.key]-data.counts[a.key]).map(c=>`<div class="stat"><span>${c.label}</span><b>${data.counts[c.key]}</b></div>`).join('')||'<div class="empty">No incidents yet.</div>';
+    $('gNarr').textContent=data.narrative; $('gTrain').textContent=data.training||'(no training)'; $('gEvents').textContent=data.significantEvents; }
+  $('gSel').onchange=()=>{genMonth=$('gSel').value;renderGen();};
+  async function deliver(bytes,name,mime){ const file=new File([bytes],name,{type:mime});
+    if(navigator.canShare && navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file],title:name}); return; }catch(e){ if(e.name==='AbortError') return; } }
+    const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),20000); }
+  const fname=ext=>M.MONTHS[+genMonth.slice(5,7)-1]+'_'+genMonth.slice(0,4)+'_Monthly_Report.'+ext;
+  // Both files come from one assembled object, so the Word and PDF versions cannot disagree.
+  function afterGenerate(){ lastGenerated=genMonth; $('backupNote').classList.remove('hidden'); }
+  $('genDocx').onclick=async e=>{ e.target.disabled=true; try{ const f=M.buildFitted(genMonth,store);
+    await deliver(await M.buildDocx(f.data,lhBytes,f.opts),fname('docx'),'application/vnd.openxmlformats-officedocument.wordprocessingml.document'); afterGenerate();
+    }catch(err){ alert('Could not build the Word file: '+err.message); } e.target.disabled=false; };
+  $('genPdf').onclick=async e=>{ e.target.disabled=true; try{ const f=M.buildFitted(genMonth,store);
+    await deliver(await M.buildPdf(f.data,lhBytes,f.opts),fname('pdf'),'application/pdf'); afterGenerate();
+    }catch(err){ alert('Could not build the PDF: '+err.message); } e.target.disabled=false; };
+  $('copyMonthText').onclick=e=>{ const sub={settings:store.settings,shifts:of(store.shifts,genMonth),trainings:of(store.trainings,genMonth),events:of(store.events,genMonth),months:{[genMonth]:store.months[genMonth]||{}}}; copy(M.exportText(sub),e.target,'Copy month as text'); };
+
+  // ---------- Settings tab
+  $('backupLater').onclick=()=>$('backupNote').classList.add('hidden');
+  $('backupNow').onclick=()=>{ $('backupNote').classList.add('hidden'); $('exportBtn').click(); };
+
+  const sMap={sRank:'rank',sName:'name',sBadge:'badge',sUnit:'unit',sTo:'to',sPerName:'perShiftTraining',sPerHours:'perShiftHours'}, lMap={sTimes:'times',sApps:'apparatus',sBcs:'bcs',sTrain:'trainings'};
+  function renderSettings(){ for(const id in sMap) $(id).value=store.settings[sMap[id]]||''; for(const id in lMap) $(id).value=(store.settings[lMap[id]]||[]).join('\n');
+    $('hdrWho').textContent=store.settings.rank+' '+store.settings.name+' · Badge '+store.settings.badge+' · '+store.settings.unit; $('version').textContent='Shift Log v'+APP_VERSION+' · data stays on this phone'; }
+  for(const id in sMap) $(id).oninput=()=>{ const v=$(id).value.trim();
+    store.settings[sMap[id]] = id==='sPerHours' ? (parseFloat(v)||0) : v;
+    save(); $('hdrWho').textContent=store.settings.rank+' '+store.settings.name+' · Badge '+store.settings.badge+' · '+store.settings.unit;
+    if(id==='sPerName'||id==='sPerHours') renderLog(); };
+  for(const id in lMap) $(id).onchange=()=>{ store.settings[lMap[id]]=$(id).value.split('\n').map(s=>s.trim()).filter(Boolean); save(); fillLists(); renderLog(); };
+  $('exportBtn').onclick=async()=>{ const txt=M.exportText(store); const d=new Date(); await deliver(new Blob([txt],{type:'text/plain'}),'SJFD_Shift_Log_'+d.getFullYear()+pad2(d.getMonth()+1)+pad2(d.getDate())+'.txt','text/plain'); };
+  $('copyExport').onclick=e=>copy(M.exportText(store),e.target,'Copy log text');
+  $('importBtn').onclick=()=>{ const txt=$('importText').value; if(!txt.trim()) return; const imp=M.importText(txt);
+    const n=M.mergeImport(store,imp); save(); renderAll();
+    $('importMsg').textContent=`Added ${n} entr${n===1?'y':'ies'}.`+(imp.errors.length?` ${imp.errors.length} line${imp.errors.length===1?'':'s'} skipped.`:'');
+    if(imp.errors.length) alert('Skipped lines:\n\n'+imp.errors.join('\n')); if(n) $('importText').value=''; };
+  $('resetBtn').onclick=()=>{ if(!confirm('Delete every shift, training and event on this phone? Export first if you want a copy.')) return; if(!confirm('Really delete everything?')) return;
+    store.shifts=[]; store.trainings=[]; store.events=[]; store.months={}; save(); renderAll(); toast('All entries deleted'); };
+
+  // ---------- Tabs
+  const titles={log:'Log',month:'Month',gen:'Generate',settings:'Settings'};
+  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{ const t=b.dataset.tab;
+    document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-current',x===b?'page':'false'));
+    document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));
+    $('modes').classList.toggle('hidden',t!=='log'); $('hdrTitle').textContent=titles[t]; window.scrollTo(0,0); renderAll(); });
+  function renderAll(){ renderLog(); renderMonth(); renderGen(); renderSettings(); }
+
+  // ---------- First run. A fresh install has no identity, so ask before anything else;
+  // an install that already has one never sees this.
+  const needsSetup = () => ['rank','name','unit','to'].some(f => !(store.settings[f]||'').trim());
+  function showSetup(){
+    $('suRank').value=store.settings.rank||''; $('suName').value=store.settings.name||'';
+    $('suBadge').value=store.settings.badge||''; $('suUnit').value=store.settings.unit||'';
+    $('suTo').value=store.settings.to||'';
+    $('suPerName').value=store.settings.perShiftTraining||'';
+    $('suPerHours').value=store.settings.perShiftHours||'';
+    $('setup').classList.remove('hidden');
+  }
+  $('suGo').onclick=()=>{
+    const v=id=>$(id).value.trim();
+    const missing=[['suRank','Rank'],['suName','Full name'],['suUnit','Unit code'],['suTo','Memo goes to']]
+      .filter(([id])=>!v(id)).map(([,label])=>label);
+    const err=$('suErr');
+    if(missing.length){ err.classList.remove('hidden');
+      err.textContent='Still needed: '+missing.join(', ')+'.'; return; }
+    err.classList.add('hidden');
+    const pn=v('suPerName');
+    Object.assign(store.settings,{ rank:v('suRank'), name:v('suName'), badge:v('suBadge'),
+      unit:v('suUnit'), to:v('suTo'), perShiftTraining:pn,
+      perShiftHours: pn ? (parseFloat(v('suPerHours'))||1) : 0 });
+    save(); $('setup').classList.add('hidden'); renderAll(); toast('Ready. Log your first shift');
+  };
+  if(needsSetup()) showSetup();
+  renderAll();
+  if(navigator.serviceWorker) navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>

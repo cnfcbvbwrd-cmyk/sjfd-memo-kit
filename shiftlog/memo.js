@@ -164,7 +164,8 @@ var MemoLib = (function () {
     // is the first thing dropped when the memo needs to lose a line.
     if (events.length && !opts.omitEventPointer) s += ' Significant events during this period are detailed above.';
     if (meta.narrativeNote && meta.narrativeNote.trim()) s += ' ' + sentence(meta.narrativeNote);
-    return s.replace(/\u2014/g, '-');
+    // Collapse any gap left by an empty field so the memo never shows a hole in a sentence.
+    return s.replace(/\u2014/g, '-').replace(/\s{2,}/g, ' ').replace(/\s+([.,])/g, '$1').trim();
   }
 
   // ---- Assemble everything the generators need

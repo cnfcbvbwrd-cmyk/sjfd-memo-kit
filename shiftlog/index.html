@@ -84,6 +84,38 @@
 </style>
 </head>
 <body>
+<div id="setup" class="hidden" style="position:fixed;inset:0;z-index:40;background:var(--paper);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="background:var(--navy);color:#fff;border-bottom:4px solid var(--red);padding:calc(env(safe-area-inset-top) + 22px) 16px 18px">
+    <div class="wrap">
+      <div style="font-size:11px;letter-spacing:.18em;opacity:.75;font-weight:600">SJFD SHIFT LOG</div>
+      <div style="font-size:22px;font-weight:800;margin-top:2px">Set up</div>
+      <div style="font-size:13px;opacity:.8;margin-top:6px;line-height:1.5">Whose memo is this? These go on every memo you generate. You can change them later in Settings.</div>
+    </div>
+  </div>
+  <div class="wrap" style="padding:16px 16px calc(env(safe-area-inset-bottom) + 40px)">
+    <div class="card">
+      <div class="grid" style="margin-bottom:0">
+        <div class="field"><label class="lbl" for="suRank">Rank</label><input type="text" id="suRank" placeholder="CA" autocapitalize="characters"></div>
+        <div class="field"><label class="lbl" for="suName">Full name</label><input type="text" id="suName" placeholder="Matt Lawton" autocapitalize="words"></div>
+        <div class="field"><label class="lbl" for="suBadge">Badge <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="text" id="suBadge" placeholder="944"></div>
+        <div class="field"><label class="lbl" for="suUnit">Unit code</label><input type="text" id="suUnit" placeholder="RB2C" autocapitalize="characters"></div>
+        <div class="field span2"><label class="lbl" for="suTo">Memo goes to</label><input type="text" id="suTo" placeholder="BC Leia Diaz" autocapitalize="words"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Standing training <span>(optional)</span></h2>
+      <p style="font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 10px">If you do the same training on most shifts, name it here and the shift form gets a one-tap box to log it. Leave blank to hide that box.</p>
+      <div class="grid" style="margin-bottom:0">
+        <div class="field"><label class="lbl" for="suPerName">Training</label><input type="text" id="suPerName" placeholder="QAB Study"></div>
+        <div class="field"><label class="lbl" for="suPerHours">Hours</label><input type="number" id="suPerHours" step="0.5" min="0.5" max="24" placeholder="2"></div>
+      </div>
+    </div>
+    <div id="suErr" class="hidden warn"></div>
+    <button class="btn btn-red" id="suGo" style="width:100%;padding:14px;font-size:16px">Start logging</button>
+    <p class="note">Everything stays on this phone. Nothing is sent anywhere, and the app works with no signal.</p>
+  </div>
+</div>
+
 <header>
   <div class="wrap">
     <div class="brand"><div><div style="font-size:11px;opacity:.75;font-weight:600">SJFD shift log</div><h1 id="hdrTitle">Log</h1></div><small id="hdrWho"></small></div>
@@ -257,10 +289,12 @@
 <script src="memo.js"></script>
 <script>
 (function(){
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const M = MemoLib, $ = id => document.getElementById(id), pad2 = n => String(n).padStart(2,'0');
   const DEFAULTS = {
-    settings: { rank:'CA', name:'Matt Lawton', badge:'944', unit:'RB2C', to:'BC Leia Diaz',
+    // Identity starts empty so a new install asks whose memo this is. The lists below are
+    // department-wide starting points, not personal, and stay editable in Settings.
+    settings: { rank:'', name:'', badge:'', unit:'', to:'',
       times:['0800-0800','0800-2000','2000-0800'], apparatus:['E2','E5','E6','E21','E26','E30','T2','T30'],
       bcs:['BC Allread','BC Diaz','BC Herrera','BC Lovens','BC Vega'],
       trainings:['QAB Study','Fire Suppression Techniques','Deep lot hose deployment','Change over and hose deployment','Ground ladders'],
@@ -438,8 +472,12 @@
     if(dups.size) w.push(dups.size+' shift'+(dups.size===1?'':'s')+' duplicated (same date, time and apparatus). Check the Month tab.');
     if(data && !data.training) w.push('No training logged; the Training section will be empty.');
     if(data && !fitted.onePage) w.push('This runs to two pages, about '+fitted.overBy+' points over. Shortening a shift note or an event would pull it back.');
+    // A memo with no name on it is worse than no memo, so block rather than build one.
+    const idGaps=[['rank','Rank'],['name','Name'],['unit','Unit code'],['to','Memo recipient']]
+      .filter(([f])=>!(store.settings[f]||'').trim()).map(([,l])=>l);
+    if(idGaps.length) w.push(idGaps.join(', ')+' missing in Settings. Fill '+(idGaps.length===1?'it':'them')+' in before generating.');
     $('gWarn').innerHTML=w.map(x=>`<div class="warn">${x}</div>`).join('');
-    const ok=!!data; $('genDocx').disabled=!ok; $('genPdf').disabled=!ok; if(!ok) return;
+    const ok=!!data && !idGaps.length; $('genDocx').disabled=!ok; $('genPdf').disabled=!ok; if(!data) return;
     $('gFit').textContent = fitted.onePage
       ? (fitted.adjustments.length ? 'Fits one page. To get there the app '+fitted.adjustments.join(', ')+'.' : 'Fits one page.')
       : 'Two pages.';
@@ -490,6 +528,33 @@
     document.querySelectorAll('.tab').forEach(s=>s.classList.toggle('on',s.id==='tab-'+t));
     $('modes').classList.toggle('hidden',t!=='log'); $('hdrTitle').textContent=titles[t]; window.scrollTo(0,0); renderAll(); });
   function renderAll(){ renderLog(); renderMonth(); renderGen(); renderSettings(); }
+
+  // ---------- First run. A fresh install has no identity, so ask before anything else;
+  // an install that already has one never sees this.
+  const needsSetup = () => ['rank','name','unit','to'].some(f => !(store.settings[f]||'').trim());
+  function showSetup(){
+    $('suRank').value=store.settings.rank||''; $('suName').value=store.settings.name||'';
+    $('suBadge').value=store.settings.badge||''; $('suUnit').value=store.settings.unit||'';
+    $('suTo').value=store.settings.to||'';
+    $('suPerName').value=store.settings.perShiftTraining||'';
+    $('suPerHours').value=store.settings.perShiftHours||'';
+    $('setup').classList.remove('hidden');
+  }
+  $('suGo').onclick=()=>{
+    const v=id=>$(id).value.trim();
+    const missing=[['suRank','Rank'],['suName','Full name'],['suUnit','Unit code'],['suTo','Memo goes to']]
+      .filter(([id])=>!v(id)).map(([,label])=>label);
+    const err=$('suErr');
+    if(missing.length){ err.classList.remove('hidden');
+      err.textContent='Still needed: '+missing.join(', ')+'.'; return; }
+    err.classList.add('hidden');
+    const pn=v('suPerName');
+    Object.assign(store.settings,{ rank:v('suRank'), name:v('suName'), badge:v('suBadge'),
+      unit:v('suUnit'), to:v('suTo'), perShiftTraining:pn,
+      perShiftHours: pn ? (parseFloat(v('suPerHours'))||1) : 0 });
+    save(); $('setup').classList.add('hidden'); renderAll(); toast('Ready. Log your first shift');
+  };
+  if(needsSetup()) showSetup();
   renderAll();
   if(navigator.serviceWorker) navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
