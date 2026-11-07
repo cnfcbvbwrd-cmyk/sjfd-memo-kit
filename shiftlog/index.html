@@ -102,7 +102,7 @@
       <div class="grid" style="margin-bottom:0">
         <div class="field"><label class="lbl" for="suRank">Rank</label><input type="text" id="suRank" placeholder="CA" autocapitalize="characters"></div>
         <div class="field"><label class="lbl" for="suName">Full name</label><input type="text" id="suName" placeholder="John Doe" autocapitalize="words"></div>
-        <div class="field"><label class="lbl" for="suBadge">Badge <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="text" id="suBadge" placeholder="944"></div>
+        <div class="field"><label class="lbl" for="suBadge">Badge</label><input type="text" id="suBadge" placeholder="944"></div>
         <div class="field"><label class="lbl" for="suUnit">Assignment</label><input type="text" id="suUnit" placeholder="RB2C" autocapitalize="characters"></div>
         <div class="field span2"><label class="lbl" for="suTo">Memo goes to</label><input type="text" id="suTo" placeholder="BC Leia Diaz" autocapitalize="words"></div>
       </div>
@@ -193,7 +193,8 @@
     <div id="inheritNote" class="hidden" style="background:var(--tint);border:1px solid #b8c6e0;border-radius:6px;padding:9px 11px;margin-bottom:12px;font-size:12.5px;color:#2b3b55"></div>
     <div class="field"><label class="lbl" for="taskBook">Task Book <span style="font-weight:400;color:var(--muted)">(e.g. 24 of 36)</span></label><input type="text" id="taskBook" placeholder="24 of 36"></div>
     <div class="field"><label class="lbl" for="targetSolutions">Target Solutions</label><input type="text" id="targetSolutions" placeholder="Current"></div>
-    <div class="field"><label class="lbl" for="policyStudy">Policy Study</label><input type="text" id="policyStudy" placeholder="Studied the Department Policies/QAB Preparation"></div>
+    <div class="field"><label class="lbl" for="onlineCityTraining">Online City Training</label><input type="text" id="onlineCityTraining" placeholder="Current"></div>
+    <div class="field"><label class="lbl" for="policyStudy">Additional Training <span style="font-weight:400;color:var(--muted)">(anything not logged as a dated training entry)</span></label><input type="text" id="policyStudy" placeholder="Any additional training or studying not logged"></div>
     <div class="field"><label class="lbl" for="narrativeNote">Extra narrative sentence <span style="font-weight:400;color:var(--muted)">(optional, appended to the evaluation summary)</span></label><input type="text" id="narrativeNote" placeholder="Training this month included sustained QAB preparation totaling 8 hours"></div>
   </div>
   <div class="card"><h2>Shifts <span id="mShiftN"></span></h2><div id="mShifts"></div></div>
@@ -290,7 +291,7 @@
 <script src="memo.js"></script>
 <script>
 (function(){
-  const APP_VERSION = '1.3.2';
+  const APP_VERSION = '1.4.2';
   const M = MemoLib, $ = id => document.getElementById(id), pad2 = n => String(n).padStart(2,'0');
   const DEFAULTS = {
     // Identity starts empty so a new install asks whose memo this is. The lists below are
@@ -463,7 +464,7 @@
     toast(filled.length ? 'Saved'+extra+'. Month details carried over' : 'Saved'+extra); };
 
   // ---------- Month tab
-  const metaFields=['taskBook','targetSolutions','policyStudy','narrativeNote'];
+  const metaFields=['taskBook','targetSolutions','onlineCityTraining','policyStudy','narrativeNote'];
   function renderMonth(){ fillMonthSel($('mSel'),curMonth); const m=store.months[curMonth]||{}; metaFields.forEach(f=>$(f).value=m[f]||'');
     // Offer the previous month's standing fields when this month still has blanks.
     const blanks=M.META_FIELDS.filter(f=>!(m[f]||'').trim()), prior=M.priorMeta(store,curMonth);
@@ -504,8 +505,7 @@
     const meta=store.months[genMonth]||{};
     if(data && !data.shiftsWorked) w.push('No shifts logged for '+M.monthName(genMonth)+'.');
     const blank=M.META_FIELDS.filter(f=>!(meta[f]||'').trim());
-    if(blank.length) w.push(({taskBook:'Task Book',targetSolutions:'Target Solutions',policyStudy:'Policy Study'})
-      && blank.map(f=>({taskBook:'Task Book',targetSolutions:'Target Solutions',policyStudy:'Policy Study'})[f]).join(', ')
+    if(blank.length) w.push(blank.map(f=>({taskBook:'Task Book',targetSolutions:'Target Solutions',onlineCityTraining:'Online City Training',policyStudy:'Additional Training'})[f]).join(', ')
       +' blank on the Month tab, so '+(blank.length===1?'it is':'they are')+' left out of the memo.');
     const dups=M.duplicateIds(of(store.shifts,genMonth));
     if(dups.size) w.push(dups.size+' shift'+(dups.size===1?'':'s')+' duplicated (same date, time and apparatus). Check the Month tab.');

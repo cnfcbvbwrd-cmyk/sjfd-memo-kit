@@ -68,7 +68,7 @@ var MemoLib = (function () {
 
   // ---- Month metadata carried forward. A new month inherits the previous month's standing
   // fields so nothing starts blank; the Task Book count is the one the user bumps each month.
-  const META_FIELDS = ['taskBook', 'targetSolutions', 'policyStudy'];
+  const META_FIELDS = ['taskBook', 'targetSolutions', 'onlineCityTraining', 'policyStudy'];
   function monthsPresent(store) {
     const s = new Set();
     [...(store.shifts || []), ...(store.trainings || []), ...(store.events || [])].forEach(e => s.add(e.date.slice(0, 7)));
@@ -187,6 +187,7 @@ var MemoLib = (function () {
       shifts: shifts.map(s => ({ date: mmddyyyy(s.date), time: s.time || '', apparatus: s.apparatus || '', bc: s.bc || '', notes: s.notes || '' })),
       counts, shiftsWorked: shifts.length,
       targetSolutions: meta.targetSolutions || '', taskBook: meta.taskBook || '',
+      onlineCityTraining: meta.onlineCityTraining || '',
       significantEvents, training,
       policyNotes: meta.policyStudy || '',
       narrative: narrative(ym, shifts, counts, settings, meta, events, opts),
@@ -224,11 +225,11 @@ var MemoLib = (function () {
     }
     // Tighter headings claim back 3.5pt of lead-in on each of the four ruled headings.
     const head = F.heading - (opts.tightHeadings ? 3.5 : 0);
-    h += head + F.incidentRow * 9 + F.totalLine + F.metaRow * 2;
+    h += head + F.incidentRow * 9 + F.totalLine + F.metaRow * (data.onlineCityTraining ? 3 : 2);
     h += head + lineCount(data.significantEvents, 9, F.bodyWidth) * F.bodyLine + F.bodyAfter;
     h += head + lineCount(data.training, 9, F.bodyWidth) * F.bodyLine + F.bodyAfter;
     h += head + lineCount(data.narrative, 9, F.bodyWidth) * F.bodyLine + 4;
-    const polIndent = textW('Policy Study Notes:  ', 9, true);
+    const polIndent = textW('Additional Training:  ', 9, true);
     h += lineCount(data.policyNotes, 9, F.bodyWidth, false, polIndent) * F.bodyLine + F.bodyAfter;
     h += (opts.tightSignature ? F.signatureTight : F.signatureNormal) + F.signatureLine;
     return h;
@@ -329,13 +330,18 @@ var MemoLib = (function () {
       cell([para([run(data.targetSolutions)])], { w: tsW[1] }),
       cell([para([run(data.rankLabel + ' Task Book:', { bold: true })])], { w: tsW[2] }),
       cell([para([run(data.taskBook)])], { w: tsW[3] })] })] }));
+    if (data.onlineCityTraining) children.push(new Table({ columnWidths: tsW, width: { size: CONTENT_W, type: WidthType.DXA }, borders: noBorders, rows: [new TableRow({ children: [
+      cell([para([run('Online City Training:', { bold: true })])], { w: tsW[0] }),
+      cell([para([run(data.onlineCityTraining)])], { w: tsW[1] }),
+      cell([para([run('')])], { w: tsW[2] }),
+      cell([para([run('')])], { w: tsW[3] })] })] }));
     children.push(heading('SIGNIFICANT EVENTS'));
     children.push(para([run(data.significantEvents)], { after: 60, line: 252 }));
     children.push(heading('TRAINING & ACTIVITIES'));
     children.push(para([run(data.training)], { after: 60, line: 252 }));
     children.push(heading('EVALUATION SUMMARY'));
     children.push(para([run(data.narrative)], { after: 80, line: 252 }));
-    children.push(para([run('Policy Study Notes:  ', { bold: true }), run(data.policyNotes)], { after: 60 }));
+    children.push(para([run('Additional Training:  ', { bold: true }), run(data.policyNotes)], { after: 60 }));
     children.push(para([run('Respectfully submitted,')],
       opts.tightSignature ? { before: 60, after: 120 } : { before: 200, after: 300 }));
     children.push(para([run(data.signature, { bold: true })]));
@@ -426,10 +432,12 @@ var MemoLib = (function () {
     text('Shifts Worked This Month:', L + 3, y - 9.5, { bold: true }); text(String(data.shiftsWorked), L + 252, y - 9.5, { bold: true, align: 'center', w: 252 }); y -= 15;
     ensure(15); { let x = L; text('Target Solutions:', x + 3, y - 9.5, { bold: true }); x += 100; text(data.targetSolutions, x + 3, y - 9.5); x += 152;
       text(data.rankLabel + ' Task Book:', x + 3, y - 9.5, { bold: true }); x += 100; text(data.taskBook, x + 3, y - 9.5); y -= 15; }
+    if (data.onlineCityTraining) { ensure(15); text('Online City Training:', L + 3, y - 9.5, { bold: true });
+      text(data.onlineCityTraining, L + 103, y - 9.5); y -= 15; }
     headingRule('SIGNIFICANT EVENTS'); paragraph(data.significantEvents, { after: 3 });
     headingRule('TRAINING & ACTIVITIES'); paragraph(data.training, { after: 3 });
     headingRule('EVALUATION SUMMARY'); paragraph(data.narrative, { after: 4 });
-    ensure(14); { const lab = 'Policy Study Notes:  '; text(lab, L, y - 8, { bold: true });
+    ensure(14); { const lab = 'Additional Training:  '; text(lab, L, y - 8, { bold: true });
       const lw = bold.widthOfTextAtSize(lab, 9); const lines = wrap(data.policyNotes, reg, 9, CW - lw);
       text(lines[0], L + lw, y - 8); y -= 11.3; for (const ln of lines.slice(1)) { text(ln, L, y - 8); y -= 11.3; } }
     y -= opts.tightSignature ? 3 : 10; ensure(40); text('Respectfully submitted,', L, y - 8);
@@ -446,7 +454,7 @@ var MemoLib = (function () {
     Object.keys(store.months || {}).forEach(m => months.add(m));
     for (const ym of [...months].sort()) {
       const m = (store.months && store.months[ym]) || {};
-      out.push(monthName(ym), '', 'Task Book: ' + (m.taskBook || ''), 'Target Solutions: ' + (m.targetSolutions || ''), 'Policy Study: ' + (m.policyStudy || ''), '');
+      out.push(monthName(ym), '', 'Task Book: ' + (m.taskBook || ''), 'Target Solutions: ' + (m.targetSolutions || ''), 'Online City Training: ' + (m.onlineCityTraining || ''), 'Policy Study: ' + (m.policyStudy || ''), '');
       for (const sh of sortByDate((store.shifts || []).filter(e => e.date.startsWith(ym)))) out.push(shiftLine(sh));
       out.push('', 'Training:');
       for (const t of sortByDate((store.trainings || []).filter(e => e.date.startsWith(ym)))) out.push(mmdd(t.date) + ' | ' + t.name + ' | ' + fmtHr(t.hours) + ' hr');
@@ -477,7 +485,8 @@ var MemoLib = (function () {
       let kv;
       if ((kv = line.match(/^Task Book:\s*(.*)$/i))) { res.months[ym].taskBook = kv[1].trim(); return; }
       if ((kv = line.match(/^Target Solutions:\s*(.*)$/i))) { res.months[ym].targetSolutions = kv[1].trim(); return; }
-      if ((kv = line.match(/^Policy Study:\s*(.*)$/i))) { res.months[ym].policyStudy = kv[1].trim(); return; }
+      if ((kv = line.match(/^Online City Training:\s*(.*)$/i))) { res.months[ym].onlineCityTraining = kv[1].trim(); return; }
+      if ((kv = line.match(/^(?:Policy Study|Additional Training):\s*(.*)$/i))) { res.months[ym].policyStudy = kv[1].trim(); return; }
       if ((kv = line.match(/^Narrative note:\s*(.*)$/i))) { res.months[ym].narrativeNote = kv[1].trim(); return; }
       if (/^Training:?$/i.test(line)) { section = 'training'; return; }
       if (/^Significant Events:?$/i.test(line)) { section = 'events'; return; }
