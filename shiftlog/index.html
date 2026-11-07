@@ -268,6 +268,24 @@
     <p class="note">Import adds entries it doesn't already have and never deletes anything. Entries stay on this phone only; export before switching devices.</p>
   </div>
   <div class="card">
+    <h2>Feedback <span>(goes to whoever maintains this app)</span></h2>
+    <p style="font-size:13px;line-height:1.5;color:var(--muted);margin:0 0 10px">Something broken, or an idea that would make this better? Send it over. Your name, unit and app version are attached automatically. None of your logged shifts are included.</p>
+    <div class="field">
+      <label class="lbl">Type</label>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-outline fbType" data-t="Problem" style="flex:1;padding:9px 0;font-size:14px">Problem</button>
+        <button class="btn btn-outline fbType" data-t="Suggestion" style="flex:1;padding:9px 0;font-size:14px">Suggestion</button>
+      </div>
+    </div>
+    <div class="field"><label class="lbl" for="fbText">Details</label>
+      <textarea id="fbText" rows="4" placeholder="What happened, or what would you change?"></textarea></div>
+    <div class="actions" style="margin:0">
+      <button class="btn btn-navy" id="fbSend">Send</button>
+      <button class="btn btn-outline" id="fbCopy">Copy instead</button>
+    </div>
+    <p class="note" id="fbNote" style="margin-top:10px"></p>
+  </div>
+  <div class="card">
     <h2>Danger zone</h2>
     <button class="btn btn-outline-red" id="resetBtn">Delete all entries on this phone</button>
   </div>
@@ -290,7 +308,10 @@
 <script src="memo.js"></script>
 <script>
 (function(){
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '1.6.0';
+  // Where user feedback is sent. A Hide My Email alias, so it can be revoked if it attracts
+  // spam. Leave empty to show only the Copy button.
+  const FEEDBACK_EMAIL = 'laze_moot_8v@icloud.com';
   const M = MemoLib, $ = id => document.getElementById(id), pad2 = n => String(n).padStart(2,'0');
   const DEFAULTS = {
     // Identity starts empty so a new install asks whose memo this is. The lists below are
@@ -539,6 +560,56 @@
   $('copyMonthText').onclick=e=>{ const sub={settings:store.settings,shifts:of(store.shifts,genMonth),trainings:of(store.trainings,genMonth),events:of(store.events,genMonth),months:{[genMonth]:store.months[genMonth]||{}}}; copy(M.exportText(sub),e.target,'Copy month as text'); };
 
   // ---------- Settings tab
+  // ---------- Feedback. Builds a report with just enough context to act on, and no log data.
+  let fbType='Problem';
+  document.querySelectorAll('.fbType').forEach(b=>b.onclick=()=>{
+    fbType=b.dataset.t;
+    document.querySelectorAll('.fbType').forEach(x=>{
+      const on = x===b;
+      x.style.background = on ? 'var(--navy)' : '#fff';
+      x.style.color = on ? '#fff' : 'var(--navy)';
+    });
+  });
+  document.querySelector('.fbType').click();   // default to Problem
+  function fbReport(){
+    const s=store.settings;
+    const who=[s.rank,s.name].filter(Boolean).join(' ')+(s.unit?' ('+s.unit+')':'');
+    const standalone = window.navigator.standalone===true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    return [
+      $('fbText').value.trim(),
+      '',
+      '----',
+      'From: '+(who.trim()||'(name not set)'),
+      'Type: '+fbType,
+      'App: v'+APP_VERSION,
+      'Date: '+new Date().toISOString().slice(0,10),
+      'Entries: '+store.shifts.length+' shifts, '+store.trainings.length+' trainings, '+store.events.length+' events',
+      'Installed: '+(standalone?'home screen':'browser tab'),
+      'Device: '+navigator.userAgent
+    ].join('\n');
+  }
+  function fbValid(){ if($('fbText').value.trim()) return true;
+    $('fbNote').textContent='Write what happened first.'; return false; }
+  $('fbSend').onclick=()=>{
+    if(!fbValid()) return;
+    if(!FEEDBACK_EMAIL){ $('fbCopy').click(); return; }
+    const subject='Shift Log '+fbType.toLowerCase()+' from '+(store.settings.name||'a user');
+    // An anchor rather than location.href: a standalone home screen app can refuse to
+    // navigate itself to a mailto, which would silently do nothing.
+    const a=document.createElement('a');
+    a.href='mailto:'+FEEDBACK_EMAIL+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(fbReport());
+    a.style.display='none'; document.body.appendChild(a); a.click(); a.remove();
+    $('fbNote').textContent='Opening your mail app. Send the message to finish.';
+  };
+  $('fbCopy').onclick=async e=>{
+    if(!fbValid()) return;
+    await copy(fbReport(), e.target, 'Copy instead');
+    $('fbNote').textContent = FEEDBACK_EMAIL
+      ? 'Copied. Paste it into a message to '+FEEDBACK_EMAIL+'.'
+      : 'Copied. Paste it into a text or email to whoever sent you this app.';
+  };
+  if(!FEEDBACK_EMAIL) $('fbSend').classList.add('hidden');
+
   $('backupLater').onclick=()=>$('backupNote').classList.add('hidden');
   $('backupNow').onclick=()=>{ $('backupNote').classList.add('hidden'); $('exportBtn').click(); };
 
